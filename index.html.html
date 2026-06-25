@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{DECK_TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Google Fonts: replace families with whatever brand/tokens.css declares -->
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,200;8..60,300;8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   BRAND TOKENS — inlined from brand/tokens.css
+   ============================================================ */
+:root {
+  --brand-primary: #1B4D3E;
+  --brand-primary-deep: #123329;
+  --brand-primary-soft: rgba(27, 77, 62, 0.10);
+  --brand-secondary: #B5482E;
+  --brand-secondary-deep: #8F3922;
+  --brand-secondary-soft: rgba(181, 72, 46, 0.10);
+  --brand-neutral-light: #F4F1EA;
+  --brand-neutral-light-soft: #FAF8F3;
+  --brand-neutral-light-deep: #E9E4D8;
+  --brand-neutral-dark: #1C2321;
+  --brand-neutral-dark-soft: #2B332F;
+  --brand-neutral-dark-deep: #111614;
+  --rule: rgba(28, 35, 33, 0.12);
+  --rule-light: rgba(244, 241, 234, 0.16);
+  --brand-gradient: linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+  --brand-gradient-vertical: linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+  --font-display: 'Source Serif 4', 'Georgia', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --ease-slow: 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-med:  0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-fast: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --radius-tight: 4px;
+  --radius-pill: 999px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+*:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 4px; border-radius: var(--radius-tight); }
+
+html, body {
+  font-family: var(--font-display);
+  background: var(--brand-neutral-dark);
+  color: var(--brand-neutral-dark);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'tnum' on;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   STAGE — fixed-size frame (1920x1080) scaled to viewport
+   ============================================================ */
+.stage {
+  position: fixed; inset: 0;
+  overflow: hidden;
+  background: var(--brand-neutral-dark);
+}
+.stage-frame {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 1920px; height: 1080px;
+  background: var(--brand-neutral-light);
+  transform-origin: center center;
+  /* JS sets: transform: translate(-50%, calc(-50% + yShift)) scale(s) */
+  will-change: transform;
+}
+
+.slide {
+  position: absolute; inset: 0;
+  padding: 80px 120px 110px; /* never reduce padding-bottom below 110 */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--ease-med), visibility var(--ease-med);
+  overflow: hidden;
+}
+.slide.active {
+  opacity: 1;
+  visibility: visible;
+}
+.slide.dark {
+  background: var(--brand-neutral-dark);
+  color: var(--brand-neutral-light);
+}
+/* Background variants — brand-agnostic via tokens. Use to alternate texture
+   across the deck without always toggling cream <-> charcoal hard. */
+.slide.soft {
+  background: var(--brand-neutral-light-soft);
+}
+.slide.cream {
+  background: var(--brand-neutral-light-deep);
+}
+
+/* ============================================================
+   SLIDE-BG — full-bleed atmospheric image layer
+   Use for cover, mapview, endpaper-style slides where an
+   atmospheric background image should sit behind the content.
+   ============================================================
+   Z-INDEX DISCIPLINE (do not violate):
+     0  → .slide-bg (image + dark gradient overlay)
+     2  → slide content (titles, body, CTAs) — must opt-in via
+          position: relative + z-index: 2
+     5  → .chrome (always above content via .chrome's existing z-index: 5)
+   Without this discipline, content disappears behind the image
+   or the chrome ends up under the image.
+   ============================================================ */
+.slide-bg {
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none; user-select: none;
+}
+.slide-bg img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+  display: block;
+}
+/* Default readability overlay — adjustable per slide via inline style if needed */
+.slide-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(27, 31, 37, 0.35) 0%,
+    rgba(27, 31, 37, 0.55) 70%,
+    rgba(27, 31, 37, 0.80) 100%
+  );
+}
+/* When slide is on cream, lighten the overlay so the image stays visible */
+.slide:not(.dark) .slide-bg::after {
+  background: linear-gradient(
+    180deg,
+    rgba(250, 242, 223, 0.10) 0%,
+    rgba(250, 242, 223, 0.25) 70%,
+    rgba(250, 242, 223, 0.50) 100%
+  );
+}
+
+/* ============================================================
+   CHROME — editorial frame on every slide
+   ============================================================ */
+.chrome {
+  position: absolute;
+  inset: 36px 60px;
+  pointer-events: none;
+  z-index: 5;
+}
+.chrome-row {
+  position: absolute;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.chrome-row.top { top: 0; }
+.chrome-row.bottom { bottom: 0; }
+
+.meta-label, .signature, .nav-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--brand-neutral-dark);
+  opacity: 0.62;
+}
+.slide.dark .meta-label,
+.slide.dark .signature,
+.slide.dark .nav-num { color: var(--brand-neutral-light); opacity: 0.7; }
+
+.nav-num strong { font-weight: 700; opacity: 1; }
+
+.brand-mark {
+  width: 56px; height: 26px;
+  color: var(--brand-neutral-dark);
+}
+.slide.dark .brand-mark { color: var(--brand-neutral-light); }
+
+/* ============================================================
+   REVEAL — animation on slide entry
+   ============================================================ */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.slide.active .reveal {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--ease-slow), transform var(--ease-slow);
+}
+.slide.active .reveal:nth-child(1) { transition-delay: 0.05s; }
+.slide.active .reveal:nth-child(2) { transition-delay: 0.18s; }
+.slide.active .reveal:nth-child(3) { transition-delay: 0.31s; }
+.slide.active .reveal:nth-child(4) { transition-delay: 0.44s; }
+.slide.active .reveal:nth-child(5) { transition-delay: 0.57s; }
+.slide.active .reveal:nth-child(6) { transition-delay: 0.70s; }
+.slide.active .reveal:nth-child(7) { transition-delay: 0.83s; }
+
+[data-stagger] > * {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.slide.active [data-stagger] > * {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--ease-slow), transform var(--ease-slow);
+}
+.slide.active [data-stagger] > *:nth-child(1) { transition-delay: 0.10s; }
+.slide.active [data-stagger] > *:nth-child(2) { transition-delay: 0.22s; }
+.slide.active [data-stagger] > *:nth-child(3) { transition-delay: 0.34s; }
+.slide.active [data-stagger] > *:nth-child(4) { transition-delay: 0.46s; }
+.slide.active [data-stagger] > *:nth-child(5) { transition-delay: 0.58s; }
+.slide.active [data-stagger] > *:nth-child(6) { transition-delay: 0.70s; }
+.slide.active [data-stagger] > *:nth-child(7) { transition-delay: 0.82s; }
+.slide.active [data-stagger] > *:nth-child(8) { transition-delay: 0.94s; }
+
+/* ============================================================
+   GRADIENT TEXT — anti-clip for transform: scale frames
+   ============================================================ */
+.gradient-text {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  display: inline-block;
+  transform: translateZ(0);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  /* Prevent glyph clipping on huge display sizes */
+  padding: 0.08em 0.06em;
+  margin: -0.08em -0.06em;
+  overflow: visible;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+/* ============================================================
+   TYPOGRAPHY SCALE — tune to your brand
+   ============================================================ */
+h1.display {
+  font-size: 96px;
+  font-weight: 200;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+h1.display strong { font-weight: 700; }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.10em;
+  text-transform: lowercase;
+  color: var(--brand-primary-deep);
+  opacity: 0.85;
+}
+.lede {
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1.4;
+  max-width: 880px;
+  color: var(--brand-neutral-dark-soft);
+}
+.slide.dark .lede { color: var(--brand-neutral-light-soft); opacity: 0.8; }
+
+/* ============================================================
+   COMPONENT LIBRARY — scoped CSS for components used in this deck
+   (copied from templates/components.md)
+   ============================================================ */
+
+/* origin-grid — asymmetric text + big number */
+.origin-grid { display:grid; grid-template-columns: 1fr 1fr; gap:120px; align-items:center; height:100%; }
+.origin-text { display:flex; flex-direction:column; gap:24px; }
+.origin-text h2 { font-size:48px; font-weight:300; line-height:1.25; max-width:560px; }
+.origin-num-pct { display:flex; align-items:center; justify-content:center; }
+.origin-num-pct .num { font-size:380px; font-weight:200; line-height:0.9; }
+.origin-num-pct .pct { font-size:140px; font-weight:200; margin-top:40px; }
+
+/* chapters — 4-column timeline */
+.chapters { display:grid; grid-template-columns: repeat(4, 1fr); gap:32px; margin-top:64px; position:relative; }
+.chapters::before { content:''; position:absolute; top:32px; left:0; right:0; height:1px; background:var(--rule); }
+.chapter { display:flex; flex-direction:column; gap:16px; padding-top:56px; position:relative; }
+.chapter::before { content:''; position:absolute; top:25px; left:0; width:14px; height:14px; border-radius:50%; background:var(--brand-secondary); }
+.chapter-num { font-family:var(--font-mono); font-size:11px; letter-spacing:0.10em; opacity:0.6; }
+.chapter h3 { font-size:28px; font-weight:400; line-height:1.2; }
+.chapter p { font-size:15px; line-height:1.5; opacity:0.75; }
+
+/* roadmap — phased timeline */
+.roadmap { position:relative; margin-top:80px; padding:48px 0; }
+.roadmap-track { position:absolute; top:50%; left:0; right:0; height:2px; background:var(--rule); }
+.roadmap-track::before { content:''; position:absolute; inset:0; background:var(--brand-gradient); transform-origin:left; transform:scaleX(0); animation:trackFill 2.5s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards; }
+@keyframes trackFill { to { transform:scaleX(1); } }
+.roadmap-phases { display:flex; justify-content:space-between; position:relative; }
+.roadmap-phase { display:flex; flex-direction:column; align-items:center; gap:8px; position:relative; padding-top:36px; }
+.roadmap-phase::before { content:''; position:absolute; top:-6px; width:14px; height:14px; border-radius:50%; background:var(--brand-secondary); transform:scale(0); animation:dotPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1.5s forwards; }
+@keyframes dotPop { to { transform:scale(1); } }
+.roadmap-phase strong { font-family:var(--font-mono); font-size:13px; }
+.roadmap-phase span { font-size:14px; opacity:0.8; }
+
+/* bigquote — pull-quote */
+.bigquote { display:flex; flex-direction:column; justify-content:center; gap:48px; height:100%; max-width:1500px; }
+.bigquote-text { font-size:132px; font-weight:200; line-height:1.1; letter-spacing:-0.025em; }
+.bigquote-text em { font-weight:300; font-style:italic; color:var(--brand-secondary); }
+.bigquote-attrib { font-family:var(--font-mono); font-size:14px; letter-spacing:0.08em; opacity:0.6; display:block; }
+
+/* kpi-strata — three stacked KPI bands */
+.kpi-strata { display:flex; flex-direction:column; gap:24px; margin-top:48px; }
+.kpi-layer { padding:32px; border:1px solid var(--rule); border-radius:6px; display:grid; grid-template-columns: 240px 1fr; gap:48px; align-items:center; }
+.kpi-level { font-family:var(--font-mono); font-size:13px; letter-spacing:0.08em; opacity:0.7; }
+.kpi-stats { display:grid; grid-template-columns: repeat(3, 1fr); gap:48px; }
+.kpi-stats strong { display:block; font-size:48px; font-weight:200; line-height:1; }
+.kpi-stats span { font-family:var(--font-mono); font-size:12px; opacity:0.6; }
+
+/* engage-stage — big number + obligations list */
+.engage-stage { display:grid; grid-template-columns: 1fr 1fr; gap:96px; align-items:center; height:100%; }
+.engage-num-wrap { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.engage-num { font-size:280px; font-weight:200; line-height:0.95; }
+.engage-num-cap { font-family:var(--font-mono); font-size:14px; letter-spacing:0.08em; opacity:0.6; }
+.engage-list { list-style:none; display:flex; flex-direction:column; gap:24px; }
+.engage-item { padding:24px 0; border-top:1px solid var(--rule); }
+.engage-item strong { display:block; font-size:24px; font-weight:500; margin-bottom:6px; }
+.engage-item span { font-size:16px; opacity:0.75; }
+
+/* decision-stage — final slide pattern (also reused for the breathing checkpoint slide) */
+.decision-stage { display:flex; flex-direction:column; justify-content:center; gap:48px; height:100%; }
+.decision-q { font-size:240px; font-weight:200; line-height:1; letter-spacing:-0.025em; }
+.decision-q .nogo { opacity:0.4; }
+.decision-meta { display:flex; gap:80px; font-family:var(--font-mono); font-size:13px; }
+.decision-meta strong { display:block; font-family:var(--font-display); font-size:18px; font-weight:500; margin-bottom:4px; }
+
+/* pipeline — animated flow */
+.pipeline-stage { margin-top:80px; }
+.pipeline-svg { width:100%; height:200px; }
+.pipeline-anim { animation: drawIn 1.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards; }
+@keyframes drawIn { to { stroke-dashoffset: 0; } }
+.pipeline-labels { display:flex; justify-content:space-between; margin-top:24px; font-family:var(--font-mono); font-size:13px; letter-spacing:0.08em; }
+
+/* ============================================================
+   NAV RAIL — fixed at bottom of viewport
+   ============================================================ */
+.nav-rail {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 18px;
+  background: rgba(27, 31, 37, 0.88);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--rule-light);
+  border-radius: var(--radius-pill);
+  z-index: 100;
+  font-family: var(--font-mono);
+  color: var(--brand-neutral-light);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+.nav-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--brand-neutral-light);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius-tight);
+  transition: background var(--ease-fast);
+}
+.nav-btn:hover { background: rgba(255,255,255,0.08); }
+.nav-counter { min-width: 60px; text-align: center; opacity: 0.8; }
+.nav-progress {
+  width: 240px;
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+  border-radius: var(--radius-pill);
+  position: relative;
+  cursor: pointer;
+}
+.nav-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--brand-gradient);
+  border-radius: var(--radius-pill);
+  transition: width var(--ease-fast);
+}
+.nav-progress-handle {
+  position: absolute;
+  top: 50%; transform: translate(-50%, -50%);
+  width: 12px; height: 12px;
+  background: var(--brand-neutral-light);
+  border-radius: 50%;
+  transition: left var(--ease-fast);
+  pointer-events: none;
+}
+
+/* ============================================================
+   OVERVIEW PANEL — toggled by `O` or button
+   ============================================================ */
+.overview {
+  position: fixed; inset: 0;
+  background: rgba(27, 31, 37, 0.95);
+  backdrop-filter: blur(20px);
+  z-index: 200;
+  display: none;
+  padding: 60px 80px;
+  overflow-y: auto;
+}
+.overview.open { display: block; }
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 18px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+.overview-thumb {
+  background: var(--brand-neutral-light);
+  border-radius: var(--radius-tight);
+  aspect-ratio: 16/9;
+  padding: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid transparent;
+  transition: border-color var(--ease-fast), transform var(--ease-fast);
+}
+.overview-thumb:hover { border-color: var(--brand-primary); transform: translateY(-2px); }
+.overview-thumb.current { border-color: var(--brand-secondary); }
+.overview-thumb-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--brand-neutral-dark);
+  opacity: 0.5;
+}
+.overview-thumb-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: lowercase;
+  letter-spacing: 0.08em;
+  color: var(--brand-primary-deep);
+}
+.overview-thumb-heading {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--brand-neutral-dark);
+}
+
+/* ============================================================
+   PRINT — 1 slide = 1 PDF page (1920x1080)
+   ============================================================ */
+@media print {
+  @page { size: 1920px 1080px; margin: 0; }
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  html, body {
+    background: #FFFFFF !important;
+    width: 1920px;
+    height: auto;
+    overflow: visible !important;
+  }
+  body.printing-pdf .nav-rail,
+  body.printing-pdf .overview { display: none !important; }
+  body.printing-pdf .stage {
+    position: static !important;
+    width: 1920px !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+  body.printing-pdf .stage-frame {
+    position: static !important;
+    transform: none !important;
+    width: 1920px !important;
+    height: auto !important;
+    background: transparent !important;
+  }
+  body.printing-pdf .slide {
+    position: relative !important;
+    inset: auto !important;
+    width: 1920px !important;
+    height: 1080px !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    overflow: hidden !important;
+    page-break-before: always;
+  }
+  body.printing-pdf .slide:first-child { page-break-before: avoid; }
+  /* Reveal animations forced to final state */
+  body.printing-pdf .reveal,
+  body.printing-pdf [data-stagger] > * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  /* Component animations: force final state (none of them animate in PDF).
+     Add an entry here for any new animated component you build. */
+  body.printing-pdf .pipeline-anim {
+    stroke-dashoffset: 0 !important;
+    animation: none !important;
+  }
+  body.printing-pdf .roadmap-track::before { transform: scaleX(1) !important; animation: none !important; }
+  body.printing-pdf .roadmap-phase::before { transform: scale(1) !important; animation: none !important; }
+  body.printing-pdf .funnel-bar::before { transform: scaleX(var(--width, 1)) !important; transition: none !important; }
+  body.printing-pdf .dot-grid .d.us { animation: none !important; }
+  /* Rasterized gradient-text elements: once rasterizeElement() replaces the
+     element's children with an <img>, the element's own gradient
+     background-clip:text paint must be cleared, or it paints as a solid
+     rectangle behind/around the image in Chromium's PDF pipeline. */
+  body.printing-pdf [data-rasterized="1"] {
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+  }
+  /* Background grids and atmospheric layers render unreliably in
+     Chromium PDF (1px gradient lines render thicker, mask-image
+     radial fades aren't honoured, repeating gradients band).
+     Hide them entirely. Add your own grid class to this list if
+     you invent a new one. */
+  body.printing-pdf .aurora,
+  body.printing-pdf .dust-grid,
+  body.printing-pdf .graticule,
+  body.printing-pdf .grid-bg,
+  body.printing-pdf .bg-grid,
+  body.printing-pdf .grid-pattern,
+  body.printing-pdf .background-grid,
+  body.printing-pdf .dot-grid-bg,
+  body.printing-pdf .ambient-grid,
+  body.printing-pdf .pattern-bg,
+  body.printing-pdf [data-pdf-hide] { display: none !important; }
+  /* Strip ALL shadows (box, text, drop-shadow filter) — they render
+     unreliably in Chromium PDF (banding, halos, mis-positioned blur).
+     Remove globally, not just on body, so filter chains are reset too. */
+  body.printing-pdf *,
+  body.printing-pdf *::before,
+  body.printing-pdf *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SVG DEFS — brand logo + gradients
+     Replace the path data below with your brand logo, keeping
+     fill="currentColor" on inner paths (NEVER fill="url(#grad)"
+     because <use>'s shadow DOM does not receive parent CSS).
+     ============================================================ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="brand-logo" viewBox="0 0 100 50">
+      <!-- Simple monogram mark: a stylised petri-dish ring + crossline, standing in for a CIDRZ Microbiology wordmark -->
+      <circle cx="25" cy="25" r="19" fill="none" stroke="currentColor" stroke-width="3"/>
+      <circle cx="25" cy="25" r="7" fill="currentColor"/>
+      <line x1="50" y1="14" x2="98" y2="14" stroke="currentColor" stroke-width="2.5"/>
+      <line x1="50" y1="25" x2="86" y2="25" stroke="currentColor" stroke-width="2.5" opacity="0.6"/>
+      <line x1="50" y1="36" x2="92" y2="36" stroke="currentColor" stroke-width="2.5" opacity="0.6"/>
+    </symbol>
+    <linearGradient id="brand-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="var(--brand-primary)"/>
+      <stop offset="100%" stop-color="var(--brand-secondary)"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- ============================================================
+     STAGE
+     ============================================================ -->
+<main class="stage">
+  <div class="stage-frame" id="stage-frame">
+
+    <!-- =====================================================
+         SLIDE 01 — Title
+         ===================================================== -->
+    <section class="slide active" data-eyebrow="introduction" data-heading="IQC of Antibiotics">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">01 · introduction</span>
+          <span class="nav-num"><strong>01</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">CIDRZ Central Laboratory · Microbiology</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;height:100%;gap:32px;">
+        <span class="eyebrow reveal">working sop · antimicrobial susceptibility testing</span>
+        <h1 class="display reveal">
+          IQC of <span class="gradient-text">Antibiotics</span>
+        </h1>
+        <p class="lede reveal">
+          A practical reference for performing, reading, and acting on internal quality control in antimicrobial susceptibility testing.
+        </p>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 02 — Breathing: why this matters
+         ===================================================== -->
+    <section class="slide dark" data-eyebrow="breathing" data-heading="Why this matters">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">02 · breathing</span>
+          <span class="nav-num"><strong>02</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">a number worth pausing on</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:40px;text-align:center;">
+        <span class="gradient-text reveal" style="font-size:300px;font-weight:200;line-height:1;">1</span>
+        <p class="lede reveal" style="text-align:center;color:var(--brand-neutral-light-soft);max-width:1100px;">
+          One undetected drift in disc potency is enough to misreport a result a clinician will act on.
+        </p>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 03 — Purpose & scope
+         ===================================================== -->
+    <section class="slide" data-eyebrow="purpose" data-heading="Purpose &amp; scope">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">03 · purpose &amp; scope</span>
+          <span class="nav-num"><strong>03</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">internal SOP reference</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal">
+        <span class="eyebrow">scope of this SOP</span>
+        <h1 class="display">What this procedure covers, and what it doesn't.</h1>
+        <p class="lede">This SOP governs internal quality control (IQC) for antimicrobial susceptibility testing (AST) by disc diffusion and applies to all technologists performing AST in the Microbiology section.</p>
+      </div>
+      <div class="reveal" data-stagger style="display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:56px;max-width:1500px;">
+        <div style="padding:28px 0;border-top:1px solid var(--rule);">
+          <strong style="display:block;font-size:18px;font-weight:600;margin-bottom:8px;">In scope</strong>
+          <span style="font-size:16px;opacity:0.8;line-height:1.5;">Kirby-Bauer disc diffusion QC, QC strain handling, disc/media storage, zone reading, range verification, corrective action.</span>
+        </div>
+        <div style="padding:28px 0;border-top:1px solid var(--rule);">
+          <strong style="display:block;font-size:18px;font-weight:600;margin-bottom:8px;">Out of scope</strong>
+          <span style="font-size:16px;opacity:0.8;line-height:1.5;">MIC/broth microdilution QC, automated AST platform QC, EQA scheme administration (covered under separate SOPs).</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 04 — Regulatory anchor
+         ===================================================== -->
+    <section class="slide" data-eyebrow="standards" data-heading="Regulatory anchor">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">04 · standards</span>
+          <span class="nav-num"><strong>04</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">ISO 15189:2022 · CLSI</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="origin-grid" style="grid-template-columns: 1.1fr 1fr;">
+        <div class="origin-text reveal">
+          <span class="eyebrow">why we follow these</span>
+          <h2>Every IQC decision in this SOP traces back to a clause, not a habit.</h2>
+          <p class="lede">ISO 15189:2022 Clause 6.6 requires verification that examination procedures perform as intended before patient results are released. CLSI defines what "as intended" means numerically.</p>
+        </div>
+        <ul class="reveal" data-stagger style="list-style:none;display:flex;flex-direction:column;gap:20px;">
+          <li style="padding:20px 24px;border:1px solid var(--rule);border-radius:6px;"><strong style="display:block;font-family:var(--font-mono);font-size:13px;letter-spacing:0.06em;color:var(--brand-primary);margin-bottom:6px;">ISO 15189:2022 · 6.6</strong><span style="font-size:15px;opacity:0.8;">Control of externally provided products and services / examination QC.</span></li>
+          <li style="padding:20px 24px;border:1px solid var(--rule);border-radius:6px;"><strong style="display:block;font-family:var(--font-mono);font-size:13px;letter-spacing:0.06em;color:var(--brand-primary);margin-bottom:6px;">CLSI M02</strong><span style="font-size:15px;opacity:0.8;">Performance standards for antimicrobial disc susceptibility tests.</span></li>
+          <li style="padding:20px 24px;border:1px solid var(--rule);border-radius:6px;"><strong style="display:block;font-family:var(--font-mono);font-size:13px;letter-spacing:0.06em;color:var(--brand-primary);margin-bottom:6px;">CLSI M100</strong><span style="font-size:15px;opacity:0.8;">Performance standards for antimicrobial susceptibility testing, including QC ranges.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 05 — What IQC verifies
+         ===================================================== -->
+    <section class="slide" data-eyebrow="concept" data-heading="What IQC verifies">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">05 · concept</span>
+          <span class="nav-num"><strong>05</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">four failure points</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">the four things that can drift</span>
+        <h1 class="display">IQC verifies four things at once, every time.</h1>
+      </div>
+      <div class="chapters reveal" data-stagger>
+        <div class="chapter"><span class="chapter-num">01</span><h3>Media</h3><p>Mueller-Hinton agar depth, pH, and composition.</p></div>
+        <div class="chapter"><span class="chapter-num">02</span><h3>Discs</h3><p>Antibiotic potency, storage integrity, expiry.</p></div>
+        <div class="chapter"><span class="chapter-num">03</span><h3>Organism</h3><p>QC strain identity, purity, and passage history.</p></div>
+        <div class="chapter"><span class="chapter-num">04</span><h3>Technique</h3><p>Inoculum density, plating, incubation, reading.</p></div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 06 — QC organism panel
+         ===================================================== -->
+    <section class="slide" data-eyebrow="qc strains" data-heading="QC organism panel">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">06 · qc strains</span>
+          <span class="nav-num"><strong>06</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">ATCC reference organisms</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">reference strains in routine use</span>
+        <h1 class="display">Four ATCC strains cover the routine panel.</h1>
+      </div>
+      <div class="reveal" data-stagger style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:48px;">
+        <div style="padding:24px;border:1px solid var(--rule);border-radius:8px;background:var(--brand-neutral-light-soft);">
+          <strong style="display:block;font-family:var(--font-mono);font-size:13px;color:var(--brand-primary);margin-bottom:10px;">ATCC 25922</strong>
+          <span style="display:block;font-size:16px;font-weight:500;margin-bottom:6px;"><em>E. coli</em></span>
+          <span style="font-size:13px;opacity:0.7;">General Gram-negative reference</span>
+        </div>
+        <div style="padding:24px;border:1px solid var(--rule);border-radius:8px;background:var(--brand-neutral-light-soft);">
+          <strong style="display:block;font-family:var(--font-mono);font-size:13px;color:var(--brand-primary);margin-bottom:10px;">ATCC 25923</strong>
+          <span style="display:block;font-size:16px;font-weight:500;margin-bottom:6px;"><em>S. aureus</em></span>
+          <span style="font-size:13px;opacity:0.7;">Gram-positive reference, non beta-lactamase</span>
+        </div>
+        <div style="padding:24px;border:1px solid var(--rule);border-radius:8px;background:var(--brand-neutral-light-soft);">
+          <strong style="display:block;font-family:var(--font-mono);font-size:13px;color:var(--brand-primary);margin-bottom:10px;">ATCC 27853</strong>
+          <span style="display:block;font-size:16px;font-weight:500;margin-bottom:6px;"><em>P. aeruginosa</em></span>
+          <span style="font-size:13px;opacity:0.7;">Non-fermenter reference</span>
+        </div>
+        <div style="padding:24px;border:1px solid var(--rule);border-radius:8px;background:var(--brand-neutral-light-soft);">
+          <strong style="display:block;font-family:var(--font-mono);font-size:13px;color:var(--brand-primary);margin-bottom:10px;">ATCC 49619</strong>
+          <span style="display:block;font-size:16px;font-weight:500;margin-bottom:6px;"><em>S. pneumoniae</em></span>
+          <span style="font-size:13px;opacity:0.7;">Fastidious organism reference</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 07 — QC strain maintenance
+         ===================================================== -->
+    <section class="slide" data-eyebrow="strain handling" data-heading="QC strain maintenance">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">07 · strain handling</span>
+          <span class="nav-num"><strong>07</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">subculture discipline</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="origin-grid">
+        <div class="origin-text reveal">
+          <span class="eyebrow">keeping strains true</span>
+          <h2>QC strains drift too. Subculturing discipline is part of the control.</h2>
+          <p class="lede">Working stocks are subcultured from frozen/lyophilised reference stock, never serially passaged beyond the validated limit, to avoid phenotypic drift.</p>
+        </div>
+        <ul class="engage-list reveal" data-stagger>
+          <li class="engage-item"><strong>Reference stock</strong><span>Frozen at -70°C, never used directly for daily QC.</span></li>
+          <li class="engage-item"><strong>Working stock</strong><span>Subcultured weekly from reference; maximum 5 passages before discard.</span></li>
+          <li class="engage-item"><strong>Daily plate</strong><span>Fresh subculture each testing day, 18-24h growth, purity-checked.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 08 — Frequency of testing
+         ===================================================== -->
+    <section class="slide" data-eyebrow="frequency" data-heading="Frequency of testing">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">08 · frequency</span>
+          <span class="nav-num"><strong>08</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">when QC is run</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">three triggers for QC testing</span>
+        <h1 class="display">QC runs on a schedule, and on every change.</h1>
+      </div>
+      <div class="kpi-strata reveal" data-stagger style="margin-top:40px;">
+        <div class="kpi-layer" style="grid-template-columns:280px 1fr;">
+          <span class="kpi-level">Daily · routine</span>
+          <span style="font-size:16px;opacity:0.8;">Every working day AST is performed, before patient testing begins.</span>
+        </div>
+        <div class="kpi-layer" style="grid-template-columns:280px 1fr;">
+          <span class="kpi-level">New lot · reagent change</span>
+          <span style="font-size:16px;opacity:0.8;">Any new lot of discs or media, before it enters patient use.</span>
+        </div>
+        <div class="kpi-layer" style="grid-template-columns:280px 1fr;">
+          <span class="kpi-level">Post-event · troubleshooting</span>
+          <span style="font-size:16px;opacity:0.8;">After equipment fault, unexpected result pattern, or staff retraining.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 09 — Breathing: every new lot
+         ===================================================== -->
+    <section class="slide dark" data-eyebrow="breathing" data-heading="Every new lot">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">09 · breathing</span>
+          <span class="nav-num"><strong>09</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">no exceptions</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="bigquote">
+        <p class="bigquote-text reveal">Every new lot. <em>No exceptions.</em></p>
+        <span class="bigquote-attrib reveal">before a single patient result is released on it</span>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 10 — Disc storage & handling
+         ===================================================== -->
+    <section class="slide" data-eyebrow="disc handling" data-heading="Disc storage &amp; handling">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">10 · disc handling</span>
+          <span class="nav-num"><strong>10</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">potency depends on storage</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">where potency is won or lost</span>
+        <h1 class="display">Discs lose potency before they look any different.</h1>
+      </div>
+      <div class="reveal" data-stagger style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;">
+        <div style="padding:28px;border:1px solid var(--rule);border-radius:8px;">
+          <strong style="display:block;font-size:18px;margin-bottom:10px;">Stock supply</strong>
+          <span style="font-size:15px;opacity:0.8;line-height:1.5;">-20°C, desiccated, sealed until needed.</span>
+        </div>
+        <div style="padding:28px;border:1px solid var(--rule);border-radius:8px;">
+          <strong style="display:block;font-size:18px;margin-bottom:10px;">In-use cartridge</strong>
+          <span style="font-size:15px;opacity:0.8;line-height:1.5;">2-8°C in dispenser, equilibrated to room temp before opening, used within manufacturer shelf life.</span>
+        </div>
+        <div style="padding:28px;border:1px solid var(--rule);border-radius:8px;">
+          <strong style="display:block;font-size:18px;margin-bottom:10px;">Handling rule</strong>
+          <span style="font-size:15px;opacity:0.8;line-height:1.5;">Never refreeze once thawed. Discard if condensation is seen inside the cartridge.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 11 — Inoculum preparation
+         ===================================================== -->
+    <section class="slide" data-eyebrow="inoculum" data-heading="Inoculum preparation">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">11 · inoculum</span>
+          <span class="nav-num"><strong>11</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">McFarland 0.5</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="origin-grid">
+        <div class="origin-text reveal">
+          <span class="eyebrow">density before plating</span>
+          <h2>Inoculum density is the single most common silent error.</h2>
+          <p class="lede">Suspension is adjusted to 0.5 McFarland turbidity standard, verified against a densitometer where available, and plated within 15 minutes of preparation.</p>
+        </div>
+        <div class="origin-num-pct reveal">
+          <span class="num gradient-text">0.5</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 12 — Plating & disc placement
+         ===================================================== -->
+    <section class="slide" data-eyebrow="plating" data-heading="Plating &amp; disc placement">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">12 · plating</span>
+          <span class="nav-num"><strong>12</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">even lawn, even spacing</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">procedure</span>
+        <h1 class="display">Plating, in four motions.</h1>
+      </div>
+      <div class="pipeline-stage reveal" style="margin-top:64px;">
+        <svg class="pipeline-svg" viewBox="0 0 1600 200">
+          <path class="pipeline-anim" d="M40,100 L1560,100" stroke="var(--brand-primary)" stroke-width="2" fill="none" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>
+          <circle cx="40" cy="100" r="14" fill="var(--brand-primary)"/>
+          <circle cx="540" cy="100" r="14" fill="var(--brand-primary)"/>
+          <circle cx="1040" cy="100" r="14" fill="var(--brand-primary)"/>
+          <circle cx="1560" cy="100" r="14" fill="var(--brand-secondary)"/>
+        </svg>
+        <div class="pipeline-labels" data-stagger style="display:flex; justify-content:space-between;">
+          <div style="text-align:left; max-width:220px;">Streak lawn<br><span style="opacity:0.6;">three directions</span></div>
+          <div style="text-align:center; max-width:220px;">Dry 3–5 min</div>
+          <div style="text-align:center; max-width:220px;">Apply discs<br><span style="opacity:0.6;">≤6 per 90mm plate</span></div>
+          <div style="text-align:right; max-width:240px;">Press to seat<br><span style="opacity:0.6;">no relocation after 15 min</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 13 — Incubation conditions
+         ===================================================== -->
+    <section class="slide" data-eyebrow="incubation" data-heading="Incubation conditions">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">13 · incubation</span>
+          <span class="nav-num"><strong>13</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">35°C ± 2°C, ambient air</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">conditions that must be met</span>
+        <h1 class="display">Three variables, tightly held.</h1>
+      </div>
+      <div class="reveal" data-stagger style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;">
+        <div style="padding:32px;border:1px solid var(--rule);border-radius:8px;text-align:center;">
+          <span style="display:block;font-size:56px;font-weight:200;color:var(--brand-primary);margin-bottom:8px;">35°C</span>
+          <span style="font-family:var(--font-mono);font-size:12px;opacity:0.6;">± 2°C, calibrated incubator</span>
+        </div>
+        <div style="padding:32px;border:1px solid var(--rule);border-radius:8px;text-align:center;">
+          <span style="display:block;font-size:56px;font-weight:200;color:var(--brand-primary);margin-bottom:8px;">16–18h</span>
+          <span style="font-family:var(--font-mono);font-size:12px;opacity:0.6;">standard organisms</span>
+        </div>
+        <div style="padding:32px;border:1px solid var(--rule);border-radius:8px;text-align:center;">
+          <span style="display:block;font-size:56px;font-weight:200;color:var(--brand-primary);margin-bottom:8px;">ambient</span>
+          <span style="font-family:var(--font-mono);font-size:12px;opacity:0.6;">5% CO2 for fastidious organisms</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 14 — Reading zone diameters
+         ===================================================== -->
+    <section class="slide" data-eyebrow="zone reading" data-heading="Reading zone diameters">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">14 · zone reading</span>
+          <span class="nav-num"><strong>14</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">measure to the nearest mm</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="origin-grid">
+        <div class="origin-text reveal">
+          <span class="eyebrow">where reading errors creep in</span>
+          <h2>Read against a dark background, reflected light, caliper or ruler on the underside of the plate.</h2>
+          <p class="lede">Common errors: reading through the lid, including the haze of light growth within the zone, or rounding inconsistently between technologists.</p>
+        </div>
+        <ul class="engage-list reveal" data-stagger>
+          <li class="engage-item"><strong>Edge of clear inhibition</strong><span>Measured to the point growth resumes, not the disc edge.</span></li>
+          <li class="engage-item"><strong>Swarming organisms</strong><span><em>Proteus</em> spp.: ignore the swarm veil, read the obvious zone.</span></li>
+          <li class="engage-item"><strong>Double zones</strong><span>Read the outer zone unless the SOP for that drug specifies otherwise.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 15 — CLSI M100 acceptable QC ranges
+         ===================================================== -->
+    <section class="slide" data-eyebrow="reference ranges" data-heading="CLSI M100 QC ranges">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">15 · reference ranges</span>
+          <span class="nav-num"><strong>15</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">CLSI M100, Table 4A (sample)</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">reading the table</span>
+        <h1 class="display">Each disc has a published acceptable range, by organism.</h1>
+      </div>
+      <table class="reveal" style="width:100%;margin-top:40px;border-collapse:collapse;font-size:15px;">
+        <thead>
+          <tr style="border-bottom:2px solid var(--brand-neutral-dark);">
+            <th style="text-align:left;padding:12px 16px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.06em;font-weight:500;opacity:0.7;">antibiotic disc</th>
+            <th style="text-align:left;padding:12px 16px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.06em;font-weight:500;opacity:0.7;">QC organism</th>
+            <th style="text-align:left;padding:12px 16px;font-family:var(--font-mono);font-size:12px;letter-spacing:0.06em;font-weight:500;opacity:0.7;">acceptable range (mm)</th>
+          </tr>
+        </thead>
+        <tbody style="font-family:var(--font-mono);">
+          <tr style="border-bottom:1px solid var(--rule);"><td style="padding:14px 16px;">Ampicillin 10µg</td><td style="padding:14px 16px;opacity:0.75;"><em>E. coli</em> ATCC 25922</td><td style="padding:14px 16px;">16–22</td></tr>
+          <tr style="border-bottom:1px solid var(--rule);"><td style="padding:14px 16px;">Cefoxitin 30µg</td><td style="padding:14px 16px;opacity:0.75;"><em>S. aureus</em> ATCC 25923</td><td style="padding:14px 16px;">23–29</td></tr>
+          <tr style="border-bottom:1px solid var(--rule);"><td style="padding:14px 16px;">Ciprofloxacin 5µg</td><td style="padding:14px 16px;opacity:0.75;"><em>P. aeruginosa</em> ATCC 27853</td><td style="padding:14px 16px;">25–33</td></tr>
+          <tr style="border-bottom:1px solid var(--rule);"><td style="padding:14px 16px;">Piperacillin-Tazobactam 110µg</td><td style="padding:14px 16px;opacity:0.75;"><em>E. coli</em> ATCC 25922</td><td style="padding:14px 16px;">24–30</td></tr>
+        </tbody>
+      </table>
+      <p class="reveal" style="margin-top:24px;font-size:13px;opacity:0.6;">Values illustrative; always verify against the current CLSI M100 edition in use at CIDRZ.</p>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 16 — Breathing: in range / out of range
+         ===================================================== -->
+    <section class="slide dark" data-eyebrow="breathing" data-heading="In range or out">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">16 · breathing</span>
+          <span class="nav-num"><strong>16</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">the only question that matters next</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="decision-stage">
+        <span class="eyebrow reveal">the checkpoint</span>
+        <h1 class="decision-q reveal" style="font-size:160px;"><span class="go gradient-text">In range</span> or out?</h1>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 17 — Out-of-range first response
+         ===================================================== -->
+    <section class="slide" data-eyebrow="first response" data-heading="Out-of-range checklist">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">17 · first response</span>
+          <span class="nav-num"><strong>17</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">before releasing anything</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">what to do in the first ten minutes</span>
+        <h1 class="display">An out-of-range result stops the line, not the day.</h1>
+      </div>
+      <div class="roadmap reveal" style="margin-top:88px;">
+        <div class="roadmap-track"></div>
+        <div class="roadmap-phases" data-stagger>
+          <div class="roadmap-phase"><strong>1</strong><span>Hold release</span></div>
+          <div class="roadmap-phase"><strong>2</strong><span>Repeat QC</span></div>
+          <div class="roadmap-phase"><strong>3</strong><span>Check lot &amp; storage</span></div>
+          <div class="roadmap-phase"><strong>4</strong><span>Notify supervisor</span></div>
+          <div class="roadmap-phase"><strong>5</strong><span>Document</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 18 — Root cause categories
+         ===================================================== -->
+    <section class="slide" data-eyebrow="root cause" data-heading="Root cause categories">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">18 · root cause</span>
+          <span class="nav-num"><strong>18</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">fishbone categories</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">where to look first</span>
+        <h1 class="display">Four categories explain almost every drift.</h1>
+      </div>
+      <div class="chapters reveal" data-stagger>
+        <div class="chapter"><span class="chapter-num">01</span><h3>Disc potency</h3><p>Expired, mishandled, or wrong lot.</p></div>
+        <div class="chapter"><span class="chapter-num">02</span><h3>Media</h3><p>Wrong depth, pH drift, poor batch QC.</p></div>
+        <div class="chapter"><span class="chapter-num">03</span><h3>Inoculum</h3><p>Too dense, too dilute, wrong age culture.</p></div>
+        <div class="chapter"><span class="chapter-num">04</span><h3>Technique</h3><p>Plating, incubation, or reading deviation.</p></div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 19 — Corrective action workflow
+         ===================================================== -->
+    <section class="slide" data-eyebrow="corrective action" data-heading="CAPA workflow">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">19 · corrective action</span>
+          <span class="nav-num"><strong>19</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">non-conformity to closure</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">from finding to closure</span>
+        <h1 class="display">A confirmed out-of-range result becomes a CAPA.</h1>
+      </div>
+      <div class="pipeline-stage reveal" style="margin-top:72px;">
+        <svg class="pipeline-svg" viewBox="0 0 1600 200">
+          <path class="pipeline-anim" d="M40,100 L1560,100" stroke="var(--brand-primary)" stroke-width="2" fill="none" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/>
+          <circle cx="40" cy="100" r="14" fill="var(--brand-primary)"/>
+          <circle cx="540" cy="100" r="14" fill="var(--brand-primary)"/>
+          <circle cx="1040" cy="100" r="14" fill="var(--brand-primary)"/>
+          <circle cx="1560" cy="100" r="14" fill="var(--brand-secondary)"/>
+        </svg>
+        <div class="pipeline-labels" data-stagger style="display:flex; justify-content:space-between;">
+          <div style="text-align:left; max-width:200px;">NCE raised</div>
+          <div style="text-align:center; max-width:220px;">Root cause analysis</div>
+          <div style="text-align:center; max-width:240px;">Corrective action implemented</div>
+          <div style="text-align:right; max-width:240px;">Effectiveness check &amp; close</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 20 — Documentation requirements
+         ===================================================== -->
+    <section class="slide" data-eyebrow="documentation" data-heading="Documentation requirements">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">20 · documentation</span>
+          <span class="nav-num"><strong>20</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">if it isn't written down, it didn't happen</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="origin-grid">
+        <div class="origin-text reveal">
+          <span class="eyebrow">the audit trail</span>
+          <h2>Records are what turn a daily habit into evidence of competence.</h2>
+          <p class="lede">Every QC run, pass or fail, is logged the same day, with the technologist's initials, on the designated QC log or LIMS module.</p>
+        </div>
+        <ul class="engage-list reveal" data-stagger>
+          <li class="engage-item"><strong>QC log entry</strong><span>Date, organism, disc lot, media lot, zone diameter, in/out of range.</span></li>
+          <li class="engage-item"><strong>New lot verification</strong><span>Recorded separately before the lot enters routine use.</span></li>
+          <li class="engage-item"><strong>NCE / CAPA record</strong><span>Linked to the QC log entry that triggered it.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 21 — Common pitfalls (real EQA context)
+         ===================================================== -->
+    <section class="slide" data-eyebrow="lessons" data-heading="Common pitfalls">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">21 · lessons</span>
+          <span class="nav-num"><strong>21</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">drawn from internal audit &amp; EQA findings</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div class="section-head reveal" style="height:auto;">
+        <span class="eyebrow">what our own findings have shown</span>
+        <h1 class="display">Pitfalls that have actually occurred here.</h1>
+      </div>
+      <div class="reveal" data-stagger style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-top:48px;">
+        <div style="padding:28px;border:1px solid var(--rule);border-radius:8px;">
+          <strong style="display:block;font-family:var(--font-mono);font-size:12px;letter-spacing:0.06em;color:var(--brand-secondary);margin-bottom:10px;">CAP D-A 2026 finding</strong>
+          <span style="font-size:16px;line-height:1.5;display:block;margin-bottom:8px;">AST result variance traced to <strong>compromised antibiotic disc potency</strong>, not breakpoint misinterpretation as first suspected.</span>
+          <span style="font-size:13px;opacity:0.65;">Lesson: verify disc storage and lot history before assuming a reading or interpretation error.</span>
+        </div>
+        <div style="padding:28px;border:1px solid var(--rule);border-radius:8px;">
+          <strong style="display:block;font-family:var(--font-mono);font-size:12px;letter-spacing:0.06em;color:var(--brand-secondary);margin-bottom:10px;">Internal audit finding</strong>
+          <span style="font-size:16px;line-height:1.5;display:block;margin-bottom:8px;">Missing parallel testing records and uncontrolled maintenance logs during QC review.</span>
+          <span style="font-size:13px;opacity:0.65;">Lesson: documentation gaps are findings in themselves, even when the test result was correct.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SLIDE 22 — Summary / closing
+         ===================================================== -->
+    <section class="slide" data-eyebrow="summary" data-heading="Summary">
+      <div class="chrome">
+        <div class="chrome-row top">
+          <span class="meta-label">22 · summary</span>
+          <span class="nav-num"><strong>22</strong> / 22</span>
+        </div>
+        <div class="chrome-row bottom">
+          <span class="signature">CIDRZ Central Laboratory · Microbiology</span>
+          <svg class="brand-mark"><use href="#brand-logo"/></svg>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;height:100%;gap:48px;">
+        <span class="eyebrow reveal">key takeaways</span>
+        <h1 class="display reveal" style="font-size:72px;">IQC is the quiet work behind every result you trust.</h1>
+        <div class="reveal" data-stagger style="display:flex;gap:64px;font-family:var(--font-mono);font-size:14px;letter-spacing:0.06em;opacity:0.85;">
+          <div><strong style="display:block;font-family:var(--font-display);font-size:18px;font-weight:500;margin-bottom:4px;">daily</strong>before patient testing</div>
+          <div><strong style="display:block;font-family:var(--font-display);font-size:18px;font-weight:500;margin-bottom:4px;">every lot</strong>no exceptions</div>
+          <div><strong style="display:block;font-family:var(--font-display);font-size:18px;font-weight:500;margin-bottom:4px;">document</strong>same day, every time</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============================================================
+     NAV RAIL
+     ============================================================ -->
+<nav class="nav-rail" id="nav-rail">
+  <button class="nav-btn" id="prev-btn" aria-label="Previous">←</button>
+  <span class="nav-counter" id="nav-counter">01 / 22</span>
+  <div class="nav-progress" id="nav-progress" role="slider" aria-label="Slide progress">
+    <div class="nav-progress-fill" id="nav-progress-fill"></div>
+    <div class="nav-progress-handle" id="nav-progress-handle"></div>
+  </div>
+  <button class="nav-btn" id="next-btn" aria-label="Next">→</button>
+  <button class="nav-btn" id="overview-btn" aria-label="Overview">⊞</button>
+  <button class="nav-btn" id="pdf-btn" aria-label="Save as PDF" title="Save as PDF (P)">PDF</button>
+</nav>
+
+<!-- ============================================================
+     OVERVIEW PANEL
+     ============================================================ -->
+<div class="overview" id="overview" role="dialog" aria-label="Slide overview">
+  <div class="overview-grid" id="overview-grid"></div>
+</div>
+
+<script>
+(() => {
+  // -----------------------------------------------------------
+  // Refs & state
+  // -----------------------------------------------------------
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  const frame = document.getElementById('stage-frame');
+  const nav = document.getElementById('nav-rail');
+  const counter = document.getElementById('nav-counter');
+  const progFill = document.getElementById('nav-progress-fill');
+  const progHandle = document.getElementById('nav-progress-handle');
+  const progBar = document.getElementById('nav-progress');
+  const overview = document.getElementById('overview');
+  const overviewGrid = document.getElementById('overview-grid');
+  let current = 0;
+
+  // -----------------------------------------------------------
+  // Responsive fit — transform: scale to viewport
+  // -----------------------------------------------------------
+  function fit() {
+    const navOffset = nav.offsetHeight + 24;
+    const w = window.innerWidth;
+    const h = window.innerHeight - navOffset - 16;
+    const scale = Math.min(w / 1920, h / 1080, 1.5);
+    const yShift = -navOffset / 2;
+    frame.style.transform = `translate(-50%, calc(-50% + ${yShift}px)) scale(${scale})`;
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  // -----------------------------------------------------------
+  // Navigation
+  // -----------------------------------------------------------
+  function go(idx) {
+    idx = Math.max(0, Math.min(total - 1, idx));
+    if (idx === current) return;
+    slides[current].classList.remove('active');
+    slides[idx].classList.add('active');
+    current = idx;
+    updateNav();
+    updateOverview();
+  }
+  function updateNav() {
+    counter.textContent = String(current + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+    const ratio = total === 1 ? 1 : current / (total - 1);
+    progFill.style.width = (ratio * 100) + '%';
+    progHandle.style.left = (ratio * 100) + '%';
+  }
+  document.getElementById('prev-btn').addEventListener('click', () => go(current - 1));
+  document.getElementById('next-btn').addEventListener('click', () => go(current + 1));
+
+  // Keyboard
+  let numBuffer = '', numTimer = null;
+  document.addEventListener('keydown', (e) => {
+    // Skip when typing in an input
+    if (e.target.matches('input, textarea, [contenteditable]')) return;
+    switch (e.key) {
+      case 'ArrowLeft':
+      case 'PageUp':
+        go(current - 1); e.preventDefault(); break;
+      case 'ArrowRight':
+      case 'PageDown':
+      case ' ':
+        go(current + 1); e.preventDefault(); break;
+      case 'Home': go(0); e.preventDefault(); break;
+      case 'End': go(total - 1); e.preventDefault(); break;
+      case 'o': case 'O':
+        toggleOverview(); e.preventDefault(); break;
+      case 'Escape':
+        if (overview.classList.contains('open')) toggleOverview();
+        break;
+      case 'p': case 'P':
+        if (!e.metaKey && !e.ctrlKey) {
+          printPdf(); e.preventDefault();
+        }
+        break;
+      case 'Enter':
+        if (numBuffer) {
+          const idx = parseInt(numBuffer, 10) - 1;
+          numBuffer = '';
+          if (!isNaN(idx)) go(idx);
+        }
+        break;
+    }
+    if (/^[0-9]$/.test(e.key)) {
+      numBuffer += e.key;
+      clearTimeout(numTimer);
+      numTimer = setTimeout(() => { numBuffer = ''; }, 1500);
+    }
+  });
+
+  // Mouse wheel — debounced
+  let wheelLock = false;
+  document.addEventListener('wheel', (e) => {
+    if (overview.classList.contains('open')) return;
+    if (wheelLock) return;
+    if (Math.abs(e.deltaY) < 30 && Math.abs(e.deltaX) < 30) return;
+    wheelLock = true;
+    setTimeout(() => { wheelLock = false; }, 700);
+    if (e.deltaY > 0 || e.deltaX > 0) go(current + 1);
+    else go(current - 1);
+  }, { passive: true });
+
+  // Touch
+  let touchStartX = 0, touchStartY = 0;
+  document.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx < 0) go(current + 1);
+      else go(current - 1);
+    }
+  }, { passive: true });
+
+  // Drag the progress bar
+  let dragging = false;
+  function idxFromEvent(e) {
+    const rect = progBar.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const ratio = Math.max(0, Math.min(1, x / rect.width));
+    return Math.min(total - 1, Math.round(ratio * (total - 1)));
+  }
+  progBar.addEventListener('mousedown', (e) => { dragging = true; go(idxFromEvent(e)); e.preventDefault(); });
+  window.addEventListener('mousemove', (e) => { if (dragging) go(idxFromEvent(e)); });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  progBar.addEventListener('touchstart', (e) => { dragging = true; go(idxFromEvent(e)); }, { passive: true });
+  progBar.addEventListener('touchmove', (e) => { if (dragging) go(idxFromEvent(e)); }, { passive: true });
+  progBar.addEventListener('touchend', () => { dragging = false; });
+
+  // -----------------------------------------------------------
+  // Overview panel
+  // -----------------------------------------------------------
+  function buildOverview() {
+    overviewGrid.innerHTML = '';
+    slides.forEach((sl, i) => {
+      const thumb = document.createElement('div');
+      thumb.className = 'overview-thumb';
+      thumb.innerHTML = `
+        <span class="overview-thumb-num">${String(i + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}</span>
+        <div>
+          <span class="overview-thumb-eyebrow">${sl.dataset.eyebrow || ''}</span>
+          <div class="overview-thumb-heading">${sl.dataset.heading || ''}</div>
+        </div>`;
+      thumb.addEventListener('click', () => {
+        go(i);
+        toggleOverview();
+      });
+      overviewGrid.appendChild(thumb);
+    });
+  }
+  function updateOverview() {
+    Array.from(overviewGrid.children).forEach((c, i) => {
+      c.classList.toggle('current', i === current);
+    });
+  }
+  function toggleOverview() {
+    overview.classList.toggle('open');
+    updateOverview();
+  }
+  document.getElementById('overview-btn').addEventListener('click', toggleOverview);
+  buildOverview();
+
+  // -----------------------------------------------------------
+  // PRINT MODE — gradient-text canvas rasterisation
+  // ----------------------------------------------------------
+  // Chromium has a known bug rendering background-clip:text +
+  // linear-gradient inside its PDF pipeline (coloured fringes
+  // around inline-block edges). The fix is to rasterise these
+  // texts to PNG via canvas before window.print(), then restore
+  // them on the afterprint event.
+  // -----------------------------------------------------------
+  // ============================================================
+  // ⚠️  CRITICAL — GRADIENT_TEXT_SELECTORS  ⚠️
+  // ============================================================
+  // EVERY CSS rule that uses `background-clip: text` + a gradient
+  // MUST have its selector listed here. Without it:
+  //   • the text WILL appear blank in the exported PDF
+  //   • there is NO error, NO warning, NO visible failure in dev
+  //   • only the final PDF reveals the missing entry
+  //
+  // VERIFICATION: search the file for `background-clip: text` and
+  // confirm every matching selector has a corresponding entry below.
+  //
+  //   grep -c 'background-clip: *text' presentations/<deck>.html
+  //   → should match the count of selectors in this array
+  //
+  // The base `.gradient-text` utility is always included.
+  // Add component-scoped selectors below as you build the deck.
+  // Examples (uncomment the ones your deck uses, or add your own):
+  // ============================================================
+  const GRADIENT_TEXT_SELECTORS = [
+    '.gradient-text',
+    '.origin-num-pct .num',
+    '.decision-q .go',
+  ];
+
+  function rasterizeAllGradients() {
+    GRADIENT_TEXT_SELECTORS.forEach(sel => {
+      document.querySelectorAll(sel).forEach(rasterizeElement);
+    });
+  }
+
+  function rasterizeElement(el) {
+    if (el.dataset.rasterized === '1') return;
+    const cs = getComputedStyle(el);
+    el.dataset.originalHTML = el.innerHTML;
+
+    // Walk childNodes, collecting text runs and forced line breaks
+    const runs = [];
+    (function walk(node) {
+      node.childNodes.forEach(child => {
+        if (child.nodeType === 3) {
+          if (child.textContent) runs.push({ type: 'text', node: child });
+        } else if (child.nodeType === 1) {
+          if (child.tagName === 'BR') runs.push({ type: 'br' });
+          else walk(child);
+        }
+      });
+    })(el);
+
+    // Split a text node into per-visual-line chunks using Range API.
+    // For each character index, we test whether the surrounding range is
+    // on the same visual line (same top y) as the previous one. If not,
+    // we break here. This gives correct text content per line even when
+    // a single text node soft-wraps over multiple visual lines.
+    function splitTextByLine(textNode) {
+      const text = textNode.textContent;
+      if (!text) return [];
+      const segments = [];
+      let segStart = 0;
+      let prevTop = null;
+      const range = document.createRange();
+      for (let i = 0; i < text.length; i++) {
+        range.setStart(textNode, i);
+        range.setEnd(textNode, i + 1);
+        const rect = range.getBoundingClientRect();
+        if (!rect.height) continue;
+        if (prevTop !== null && Math.abs(rect.top - prevTop) > 4) {
+          // Soft wrap detected — close previous segment, start new one
+          segments.push({ text: text.slice(segStart, i), top: prevTop });
+          segStart = i;
+        }
+        prevTop = rect.top;
+      }
+      if (segStart < text.length) {
+        segments.push({ text: text.slice(segStart), top: prevTop });
+      }
+      // Compute width bounds per segment
+      return segments.map(seg => {
+        const startIdx = text.indexOf(seg.text, segStart - seg.text.length);
+        const localStart = text.indexOf(seg.text); // first match; good enough for non-repeating fragments
+        const r2 = document.createRange();
+        const idx = Math.max(0, text.indexOf(seg.text));
+        r2.setStart(textNode, idx);
+        r2.setEnd(textNode, idx + seg.text.length);
+        const rb = r2.getBoundingClientRect();
+        return { text: seg.text, top: seg.top, left: rb.left, right: rb.right, height: rb.height };
+      });
+    }
+
+    // Group runs into visual lines (real per-line text, not duplicated full text)
+    const lines = [];
+    let curLine = null;
+    runs.forEach(run => {
+      if (run.type === 'br') {
+        if (curLine) { lines.push(curLine); curLine = null; }
+        lines.push({ text: '', top: 0, height: parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2 });
+        return;
+      }
+      const segs = splitTextByLine(run.node);
+      segs.forEach(seg => {
+        if (!curLine || Math.abs(curLine.top - seg.top) > 4) {
+          if (curLine) lines.push(curLine);
+          curLine = { text: '', top: seg.top, height: seg.height, left: seg.left, right: seg.right };
+        }
+        curLine.text += seg.text;
+        curLine.right = seg.right;
+      });
+    });
+    if (curLine) lines.push(curLine);
+    if (!lines.length) return;
+
+    // Resolve gradient stops from the element's background
+    const grad = parseGradient(cs.backgroundImage);
+
+    // Render each line to a canvas → <img>
+    const fontSize = parseFloat(cs.fontSize);
+    const dpr = (window.devicePixelRatio || 1) * 2;
+    const padX = Math.ceil(fontSize * 0.15);
+    const imgs = lines.map(line => {
+      if (!line.text.trim()) return '<br>';
+      const probe = document.createElement('canvas').getContext('2d');
+      probe.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontSize} / ${cs.lineHeight} ${cs.fontFamily}`;
+      const measured = probe.measureText(line.text).width;
+      const wDom = (line.right || measured) - (line.left || 0);
+      const w = Math.ceil(Math.max(wDom, measured)) + padX * 2;
+      const h = Math.ceil(parseFloat(cs.lineHeight) || fontSize * 1.2);
+      const cvs = document.createElement('canvas');
+      cvs.width = w * dpr;
+      cvs.height = h * dpr;
+      cvs.style.width = w + 'px';
+      cvs.style.height = h + 'px';
+      const ctx = cvs.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.font = probe.font;
+      ctx.textBaseline = 'alphabetic';
+      const lg = ctx.createLinearGradient(0, 0, w, 0);
+      grad.stops.forEach(s => lg.addColorStop(s.pos, s.color));
+      ctx.fillStyle = lg;
+      const baseline = h * 0.78;
+      ctx.fillText(line.text, padX, baseline);
+      return `<img src="${cvs.toDataURL('image/png')}" style="display:inline-block;vertical-align:baseline;width:${w}px;height:${h}px;">`;
+    });
+    el.innerHTML = imgs.join('');
+    el.dataset.rasterized = '1';
+  }
+
+  function parseGradient(bg) {
+    // Default fallback: brand gradient
+    const fallback = {
+      stops: [
+        { pos: 0, color: getCss('--brand-primary') || '#23B5D3' },
+        { pos: 1, color: getCss('--brand-secondary') || '#F0BA4C' },
+      ]
+    };
+    const m = /linear-gradient\(([^]+)\)\s*$/.exec(bg) || /linear-gradient\(([^]+?)\)/.exec(bg);
+    if (!m) return fallback;
+    // Walk char-by-char to split on top-level commas only — necessary because
+    // rgb(R, G, B) and rgba(R, G, B, A) contain commas inside parens.
+    const parts = [];
+    let depth = 0, buf = '';
+    for (const ch of m[1]) {
+      if (ch === '(') { depth++; buf += ch; }
+      else if (ch === ')') { depth--; buf += ch; }
+      else if (ch === ',' && depth === 0) { parts.push(buf.trim()); buf = ''; }
+      else buf += ch;
+    }
+    if (buf.trim()) parts.push(buf.trim());
+
+    // Drop the optional angle / direction (e.g. "90deg", "to right", "135deg")
+    const stopParts = parts.filter(p =>
+      /#|rgb|hsl|var\(|currentColor/i.test(p) &&
+      !/^(to\s|-?[\d.]+(deg|rad|turn|grad)\b)/i.test(p)
+    );
+    if (!stopParts.length) return fallback;
+
+    // For each stop, the position (if present) is the LAST whitespace-separated
+    // token ending in % or a length unit. The colour is everything before it.
+    const stops = stopParts.map((s, i) => {
+      const posMatch = s.match(/(\S+)\s*$/);
+      const lastTok = posMatch ? posMatch[1] : '';
+      const hasPct = /%$/.test(lastTok);
+      let color, pos;
+      if (hasPct) {
+        color = s.slice(0, posMatch.index).trim();
+        pos = parseFloat(lastTok) / 100;
+      } else {
+        color = s.trim();
+        pos = stopParts.length === 1 ? 0 : i / (stopParts.length - 1);
+      }
+      if (!isFinite(pos)) pos = stopParts.length === 1 ? 0 : i / Math.max(1, stopParts.length - 1);
+      return { pos: Math.max(0, Math.min(1, pos)), color: color || stopParts[0] };
+    });
+    return { stops };
+  }
+
+  function getCss(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function restoreAllRaster() {
+    document.querySelectorAll('[data-rasterized="1"]').forEach(el => {
+      el.innerHTML = el.dataset.originalHTML;
+      el.removeAttribute('data-rasterized');
+      delete el.dataset.originalHTML;
+    });
+    document.body.classList.remove('printing-pdf');
+  }
+
+  function printPdf() {
+    document.body.classList.add('printing-pdf');
+    rasterizeAllGradients();
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+  window.addEventListener('afterprint', restoreAllRaster);
+  document.getElementById('pdf-btn').addEventListener('click', printPdf);
+
+  // Globals exposed for headless QA / PDF export scripts
+  window.__enablePrintMode = () => document.body.classList.add('printing-pdf');
+  window.__disablePrintMode = () => document.body.classList.remove('printing-pdf');
+  window.__rasterizeGradients = rasterizeAllGradients;
+  window.__restoreRaster = restoreAllRaster;
+  window.__go = go;
+  window.__total = total;
+})();
+</script>
+</body>
+</html>
